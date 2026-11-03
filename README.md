@@ -17,6 +17,74 @@ search real estate for you natively.
 > ⚠️ Unofficial and not affiliated with ImmobilienScout24. For personal use, and gentle
 > with request volume — see the [DISCLAIMER](DISCLAIMER.md).
 
+## 🍴 About this fork
+
+Fork of [wiestju/immoscout](https://github.com/wiestju/immoscout) that adds **applying to
+listings** from the MCP server, plus a compatibility fix.
+
+**New MCP tools**
+
+- **`apply_to_listing(expose_id, message?, fields?, confirm=false)`** — fills the listing's
+  contact form ("Nachricht") in a real, logged-in Chrome window via Playwright.
+  - Without `confirm` it only fills the form and returns the values, still-empty fields and a
+    screenshot — **nothing is sent**. With `confirm=true` it clicks "Abschicken" and checks
+    for ImmoScout's "Nachricht gesendet" confirmation.
+  - Handles the three contact-form variants ImmoScout uses (short applicant form with move-in
+    date / income bracket, minimal form, extended form with adults/kids, exact income,
+    rent arrears, smoker, …). Defaults come from an applicant profile (see below); per-call
+    `fields` override them, and fields a form doesn't have are skipped and reported.
+  - Never contacts a listing twice; daily cap (`IMMOSCOUT_MAX_APPLICATIONS_PER_DAY`, default
+    20) and a minimum gap between sends (`IMMOSCOUT_MIN_SECONDS_BETWEEN_APPLICATIONS`, 60 s).
+  - Refuses to send when logged out or when a captcha appears; switches off the
+    "moving company offers" opt-in.
+- **`list_applications()`** — what has been sent so far.
+
+**Setup**
+
+```bash
+pip install -e ".[mcp,apply]"
+playwright install chromium   # Chrome itself is used by default (IMMOSCOUT_BROWSER_CHANNEL)
+immoscout-login               # opens Chrome: log in, then close the window
+```
+
+Log in with ImmoScout **e-mail + password** — a "Mit Google anmelden" session lives only as
+long as the browser window and is gone on the next run.
+
+The applicant profile is a JSON file passed via `IMMOSCOUT_PROFILE` (default:
+`%LOCALAPPDATA%/immoscout/profile.json`):
+
+```json
+{
+  "message": "Sehr geehrte/r Vermieter/in, …",
+  "fields": {
+    "salutation": "MALE", "firstName": "…", "lastName": "…", "phoneNumber": "…",
+    "street": "…", "houseNumber": "…", "postcode": "…", "city": "…",
+    "moveInDateType": "CONCRETE", "moveInDate": "01.12.2026",
+    "numberOfPersons": "ONE_PERSON", "numberOfAdults": "1", "numberOfKids": "0",
+    "hasPets": "FALSE", "smoker": "FALSE",
+    "employmentRelationship": "PUBLIC_EMPLOYEE", "employmentStatus": "INDEFINITE_PERIOD",
+    "income": "OVER_3000_UPTO_4000", "incomeAmount": "3500",
+    "applicationPackageCompleted": "TRUE", "forCommercialPurposes": "FALSE",
+    "rentArrears": "FALSE", "insolvencyProcess": "FALSE", "depositGuarantee": "FALSE"
+  }
+}
+```
+
+Register with Claude Code:
+
+```bash
+claude mcp add immoscout -e IMMOSCOUT_PROFILE=/path/to/profile.json -- immoscout-mcp
+```
+
+Browser profile, application log, screenshots and captured submit requests are stored in
+`%LOCALAPPDATA%/immoscout/` (override with `IMMOSCOUT_DATA_DIR`).
+
+**Fix:** pins `mcp<2` — mcp 2.x renamed `FastMCP`, so a fresh `pip install "immoscout[mcp]"`
+currently fails to start the server.
+
+> Automating contact requests may conflict with ImmobilienScout24's terms of use. Review
+> each message before confirming, and keep the volume low.
+
 ## ✨ Features
 
 - 🚫 **No captchas to solve** — talks to ImmobilienScout24's **mobile API**, which returns

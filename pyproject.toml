@@ -31,13 +31,15 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-mcp = ["mcp>=1.2"]
+mcp = ["mcp>=1.2,<2"]
+apply = ["playwright>=1.45"]
 dev = ["pytest>=8.0", "ruff>=0.6", "responses>=0.25"]
 docs = ["mkdocs-material>=9.5", "mkdocstrings[python]>=0.26"]
 
 [project.scripts]
 immoscout = "immoscout.cli:main"
 immoscout-mcp = "immoscout.mcp_server:main"
+immoscout-login = "immoscout.browser:main_login"
 
 [project.urls]
 Homepage = "https://github.com/wiestju/ImmoScout"

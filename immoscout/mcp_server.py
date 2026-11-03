@@ -17,6 +17,9 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     FastMCP = None  # type: ignore[assignment]
 
+import anyio
+
+from . import apply as apply_mod
 from .client import ImmoscoutClient
 from .filters import SearchFilter
 
@@ -67,6 +70,48 @@ def _build_server() -> FastMCP:
             if len(listings) >= max_results:
                 break
         return {"total_results": first.total_results, "returned": len(listings), "listings": listings}
+
+    @mcp.tool()
+    async def apply_to_listing(
+        expose_id: str,
+        message: str,
+        fields: dict[str, str] | None = None,
+        confirm: bool = False,
+    ) -> dict:
+        """Contact the landlord of a listing via its ImmoScout contact form.
+
+        Without ``confirm`` it only fills the form and returns the values plus a
+        screenshot path — nothing is sent. Show that to the user and only call again
+        with ``confirm=True`` after they approve this specific message.
+
+        Name, e-mail, phone, address, household, job and income are prefilled from the
+        user's ImmoScout profile; override any via ``fields``, e.g.
+        {"moveInDateType": "CONCRETE", "moveInDate": "01.02.2027", "hasPets": "FALSE"}.
+        Allowed keys/values: salutation (DIVERS|FEMALE|MALE|COMPANY), firstName, lastName,
+        emailAddress, phoneNumber, street, houseNumber, postcode, city,
+        moveInDateType (CONCRETE|FLEXIBLE|FROM_NOW), moveInDate (DD.MM.YYYY),
+        numberOfPersons (ONE_PERSON|TWO_PERSON|FAMILY|BIG_GROUP), hasPets (TRUE|FALSE),
+        employmentRelationship (PUBLIC_EMPLOYEE|WORKER|SELF_EMPLOYED|OFFICER|TRAINEE|
+        STUDENT|DOCTORAND|HOUSEWIFE|UNEMPLOYED|RETIREE|OTHER),
+        income (BELOW_500|OVER_500_UPTO_1000|…|OVER_4000_UPTO_5000|OVER_5000),
+        applicationPackageCompleted (TRUE|FALSE).
+
+        Each listing is contacted at most once; there is a daily cap and a minimum gap
+        between sends. Write the message in German unless the user says otherwise.
+        """
+        try:
+            return await anyio.to_thread.run_sync(
+                lambda: apply_mod.apply(expose_id, message, fields, confirm)
+            )
+        except apply_mod.ApplyError as exc:
+            return {"expose_id": expose_id, "status": "error", "error": str(exc)}
+
+    @mcp.tool()
+    def list_applications() -> list[dict]:
+        """Listings already contacted (or attempted), newest last."""
+        return [
+            {k: e[k] for k in ("at", "expose_id", "status") if k in e} for e in apply_mod.load_log()
+        ]
 
     @mcp.tool()
     def get_expose(expose_id: str) -> dict:
